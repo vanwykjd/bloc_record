@@ -21,14 +21,17 @@ module BlocRecord
       end
     end
     
+    
     def convert_keys(options)
       options.keys.each { |k| options[k.to_s] = options.delete(k) if k.kind_of?(Symbol) }
       options
     end
     
+    
     def instance_variables_to_hash(obj)
       Hash[ obj.instance_variables.map{ |var| ["#{var.to_s.delete('@')}", obj.instance_variable_get(var.to_s)] } ]
     end
+    
     
     def reload_obj(dirty_obj)
       persisted_obj = dirty_obj.class.find_one(dirty_obj.id)
@@ -37,5 +40,30 @@ module BlocRecord
       end
     end
     
+    
+    def int_data_type?(data)
+      error = nil
+      case data
+        when Integer 
+          unless data >= 0
+            error =  "'#{data}' >> Entry must be a positive number."
+          end
+        when Numeric 
+            error =  "'#{data}' >> Entry cannot be a decimal."
+        when String 
+            error =  "'#{data}' >> Entry cannot be a String."
+        else
+            error =  "'#{data}' >> Entry must be a number."
+      end
+      
+      unless error 
+        return true
+      end
+      
+      raise ArgumentError.new("Invalid Entry: #{error}") 
+    end
+    
+    
   end
 end
+  

@@ -20,7 +20,7 @@ module Persistence
     
     fields = self.class.attributes.map { |col| "#{col}=#{BlocRecord::Utility.sql_strings(self.instance_variable_get("@#{col}"))}"}.join(",")
     
-    self.class.connection.execute <<- SQL
+    self.class.connection.execute(<<-SQL)
       UPDATE #{self.class.table}
       SET #{fields}
       WHERE id = #{self.id};
@@ -36,7 +36,7 @@ module Persistence
       attrs.delete "id"
       vals = attributes.map { |key| BlocRecord::Utility.sql_strings(attrs[key]) }
       
-      connection.execute <<-SQL
+      connection.execute(<<-SQL)
         INSERT INTO #{table} (#{attributes.join ","})
         VALUES (#{vals.join ","});
       SQL
