@@ -114,12 +114,19 @@ SQL
   end
   
   def order(*args)
-    if args.count > 1
-      order = args.join(",")
-    else
-      order = args.first.to_s
+    order_args = []
+    args.each do |arg|
+      case arg
+      when String
+        order_args << arg
+      when Symbol
+        order_args << arg.to_s
+      when Hash
+        order_args << arg.map{ |key, value| "#{key} #{value}"}
+      end
     end
     
+    order = order_args.join(",")
     rows = connection.execute <<-SQL
       SELECT * FROM #{table}
       ORDER BY #{order};
@@ -145,6 +152,15 @@ SQL
         rows = connection.execute <<-SQL
           SELECT * FROM #{table}
           INNER JOIN #{args.first} ON #{args.first}.#{table}_id = #{table}.id
+SQL
+      when Hash
+        expression_hash = BlocRecord::Utility.convert_keys(args.first)
+        expression = expression_hash.map { |key, value| 
+          "INNER JOIN #{key} ON #{key}.#{table}_id = #{table}.id 
+           INNER JOIN #{BlocRecord::Utility.sql_strings(value)} ON #{BlocRecord::Utility.sql_strings(value)}.#{key}_id = #{key}.id"
+        }
+        rows = connection.execute <<-SQL
+          SELECT * FROM #{table} #{expression}
 SQL
       end
     end
