@@ -61,10 +61,27 @@ SQL
     
     
     def update(ids, updates)
+      if ids.class == Array && updates.class == Array
+        update = ids.zip(updates)
+        update.each { |id, update| 
+          update_each(id, update)
+        }
+      else
+        update_each(ids , updates)
+      end
+    end
+    
+    
+    def update_all(updates)
+      update(nil, updates)
+    end
+    
+    
+    def update_each(ids, updates)
       updates = BlocRecord::Utility.convert_keys(updates)
       updates.delete "id"
       updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
-      
+
       if ids.class == Fixnum
         where_clause = "WHERE id = #{ids}"
       elsif ids.class == Array
@@ -77,15 +94,24 @@ SQL
         UPDATE #{table}
         SET #{updates_array * ","} #{where_clause}
 SQL
-      
       true
     end
     
     
-    def update_all(updates)
-      update(nil, updates)
+    def method_missing(m, *args, &block) 
+      if m.match?(/update/)
+        attribute =  m.to_s[7..-1]
+        values = args[0]
+        
+        unless columns.index("#{attribute}").nil?
+          return self.update(self.id, { attribute => values })
+        end
+      
+        return "Invalid Argument: #{m} >> There is no such column: '#{attribute}' -- please try again."  
+      else
+        return "Invalid Method: #{m} >> The method called does not exist -- please try again."  
+      end  
     end
-
-  end
-  
+    
+  end 
 end

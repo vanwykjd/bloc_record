@@ -91,6 +91,8 @@ SQL
   end
 
   def where(*args)
+    return self.all if args.count == 0
+    
     if args.count > 1
       expression = args.shift
       params = args
