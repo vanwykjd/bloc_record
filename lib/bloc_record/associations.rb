@@ -1,5 +1,6 @@
 require 'sqlite3'
 require 'active_support/inflector'
+require 'pg'
 
 module Associations
   
@@ -21,6 +22,25 @@ SQL
   end
   
   
+  def has_one(association)
+    define_method(association) do
+      association_name = association.to_s
+      row = self.class.connection.get_first_row <<-SQL
+        SELECT * FROM #{association_name}
+        WHERE #{self.class.table}_id = #{self.id}
+SQL
+      
+      class_name = association_name.classify.constantize
+      
+      if row
+        data = Hash[class_name.columns.zip(row)]
+        class_name.new(data)
+      end
+    
+    end
+  end
+  
+  
   def belongs_to(association)
     define_method(association) do
       association_name = association.to_s
@@ -35,6 +55,8 @@ SQL
         data = Hash[class_name.columns.zip(row)]
         class_name.new(data)
       end
+      
     end
-    
+  end
+  
 end
