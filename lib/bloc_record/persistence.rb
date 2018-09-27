@@ -2,6 +2,7 @@ require 'sqlite3'
 require 'bloc_record/schema'
 require 'pg'
 
+
 module Persistence
   
   def self.included(base)
@@ -23,7 +24,7 @@ module Persistence
     
     fields = self.class.attributes.map { |col| "#{col}=#{BlocRecord::Utility.sql_strings(self.instance_variable_get("@#{col}"))}"}.join(",")
     
-    self.class.connection.execute <<- SQL
+    self.class.connection.exec <<- SQL
       UPDATE #{self.class.table}
       SET #{fields}
       WHERE id = #{self.id};
@@ -55,13 +56,13 @@ module Persistence
       attrs.delete "id"
       vals = attributes.map { |key| BlocRecord::Utility.sql_strings(attrs[key]) }
       
-      connection.execute <<-SQL
+      connection.exec <<-SQL
         INSERT INTO #{table} (#{attributes.join ","})
         VALUES (#{vals.join ","});
 SQL
 
       data = Hash[attributes.zip attrs.values]
-      data["id"] = connection.execute("SELECT last_insert_rowid();")[0][0]
+      data["id"] = connection.exec("SELECT currval(pg_get_serial_sequence('#{table}','id'));")[0][0]
       new(data)
     end
     
@@ -71,7 +72,7 @@ SQL
       updates.delete "id"
       updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
       
-      if ids.class == Fixnum
+      if ids.class == Fixnum || Serial
         where_clause = "WHERE id = #{ids}"
       elsif ids.class == Array
         where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
@@ -79,7 +80,7 @@ SQL
         where_clause = ";"
       end
       
-      connection.execute <<-SQL
+      connection.exec <<-SQL
         UPDATE #{table}
         SET #{updates_array * ","} #{where_clause}
 SQL
@@ -97,10 +98,10 @@ SQL
       if id.length > 1
         where_clause = "WHERE id IN (#{id.join(",")});"
       else
-        where_clause = "WHERE id = #{id.first};"
+        where_clause = "WHERE id = #{id.first[1]};"
       end
       
-      connection.execute <<-SQL
+      connection.exec <<-SQL
         DELETE FROM #{table} #{where_clause}
 SQL
       
@@ -113,18 +114,20 @@ SQL
         conditions_hash = BlocRecord::Utility.convert_keys(conditions_hash)
         conditions = conditions_hash.map {|key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}"}.join(" and ")
         
-        connection.execute <<-SQL
+        connection.exec <<-SQL
           DELETE FROM #{table}
           WHERE #{conditions};
 SQL
       else
-        connection.execute <<-SQL
+        connection.exec <<-SQL
           DELETE FROM #{table}
 SQL
       end
       
       true
     end
+    
+    
 
   end
   

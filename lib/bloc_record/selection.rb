@@ -5,9 +5,9 @@ module Selection
   
   def find(*ids)
     if ids.length == 1
-      find_one(ids.first)
+      find_one(ids.first[1])
     else
-      rows = connection.exectue <<-SQL
+      rows = connection.exec <<-SQL
         SELECT #{columns.join ","} FROM #{table}
         WHERE id IN (#{ids.join(",")});
 SQL
@@ -18,7 +18,7 @@ SQL
     
   
   def find_one(id)
-    row = connection.get_first_row <<-SQL
+    row = connection.exec(<<-SQL)
       SELECT #{columns.join ","} FROM #{table}
       WHERE id = #{id};
 SQL
@@ -28,7 +28,7 @@ SQL
     
     
   def find_by(attribute, value)
-    rows = connection.execute <<-SQL
+    rows = connection.exec <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       WHERE #{attribute} = #{BlocRecord::Utility.sql_strings(value)};
 SQL
@@ -39,7 +39,7 @@ SQL
     
   def take(num=1)
     if num > 1
-      rows = connection.execute <<-SQL
+      rows = connection.exec <<-SQL
         SELECT #{columns.join ","} FROM #{table}
         ORDER BY random()
         LIMIT #{num};
@@ -53,7 +53,7 @@ SQL
     
     
   def take_one
-    row = connection.get_first_row <<-SQL
+    row = connection.exec(<<-SQL).first.values
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY random()
       LIMIT 1;
@@ -64,7 +64,7 @@ SQL
     
     
   def first
-    row = connection.get_first_row <<-SQL
+    row = connection.exec(<<-SQL).first.values
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id ASC LIMIT 1;
 SQL
@@ -74,7 +74,7 @@ SQL
     
     
   def last
-    row = connection.get_first_row <<-SQL
+    row = connection.exec(<<-SQL).first.values
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id DESC LIMIT 1;
 SQL
@@ -84,7 +84,7 @@ SQL
     
   
   def all
-    rows = connection.execute <<-SQL
+    rows = connection.exec <<-SQL
       SELECT #{columns.join ","} FROM #{table};
 SQL
     
@@ -110,7 +110,7 @@ SQL
        WHERE #{expression};
 SQL
 
-     rows = connection.execute(sql, params)
+     rows = connection.exec(sql, params)
      rows_to_array(rows)
   end
   
@@ -121,7 +121,7 @@ SQL
       order = args.first.to_s
     end
     
-    rows = connection.execute <<-SQL
+    rows = connection.exec <<-SQL
       SELECT * FROM #{table}
       ORDER BY #{order};
 SQL
@@ -133,17 +133,17 @@ SQL
   def join(*args)
     if args.count > 1
       joins = args.map { |arg| "INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id"}.join(" ")
-      rows = connection.execute <<-SQL
+      rows = connection.exec <<-SQL
         SELECT * FROM #{table} #{joins}
 SQL
     else
       case args.first
       when String
-        rows = connection.execute <<-SQL
+        rows = connection.exec <<-SQL
           SELECT * FROM #{table} #{BlocRecord::Utility.sql_strings(args.first)};
 SQL
       when Symbol
-        rows = connection.execute <<-SQL
+        rows = connection.exec <<-SQL
           SELECT * FROM #{table}
           INNER JOIN #{args.first} ON #{args.first}.#{table}_id = #{table}.id
 SQL

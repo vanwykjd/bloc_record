@@ -6,7 +6,7 @@ module Associations
   
   def has_many(association)
     define_method(association) do
-      rows = self.class.connection.execute <<-SQL
+      rows = self.class.connection.exec <<-SQL
         SELECT * FROM #{association.to_s.singularize}
         WHERE #{self.class.table}_id = #{self.id}
 SQL
@@ -25,7 +25,7 @@ SQL
   def has_one(association)
     define_method(association) do
       association_name = association.to_s
-      row = self.class.connection.get_first_row <<-SQL
+      row = self.class.connection.exec(<<-SQL).first.values
         SELECT * FROM #{association_name}
         WHERE #{self.class.table}_id = #{self.id}
 SQL
@@ -44,9 +44,10 @@ SQL
   def belongs_to(association)
     define_method(association) do
       association_name = association.to_s
-      row = self.class.connection.get_first_row <<-SQL
+      target_id = self.send(association_name + "_id")[1]
+      row = self.class.connection.exec(<<-SQL).first.values
         SELECT * FROM #{association_name}
-        WHERE id = #{self.send(association_name + "_id")}
+        WHERE id = #{target_id}
 SQL
       
       class_name = association_name.classify.constantize
