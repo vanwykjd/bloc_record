@@ -5,33 +5,54 @@ module Selection
   
   def find(*ids)
     if ids.length == 1
-      find_one(ids.first[1])
+      find_one(ids.first)
     else
-      rows = connection.exec <<-SQL
+      sql = <<-SQL
         SELECT #{columns.join ","} FROM #{table}
         WHERE id IN (#{ids.join(",")});
 SQL
-          
+      if defined?(connection.exec)
+        rows = connection.exec(sql)
+      else
+        rows = connection.execute(sql)
+      end
+      
       rows_to_array(rows)
     end
   end
     
   
   def find_one(id)
-    row = connection.exec(<<-SQL)
+    if defined?(connection.exec)
+    sql = <<-SQL
+      SELECT #{columns.join ","} FROM #{table}
+      WHERE id = #{id[1]};
+SQL
+      row = connection.exec(sql).first
+    else
+      sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       WHERE id = #{id};
 SQL
+    
+      row = connection.get_first_row(sql)
+    end
     
     init_object_from_row(row)
   end
     
     
   def find_by(attribute, value)
-    rows = connection.exec <<-SQL
+    sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       WHERE #{attribute} = #{BlocRecord::Utility.sql_strings(value)};
 SQL
+    
+    if defined?(connection.exec)
+      rows = connection.exec(sql)
+    else
+      rows = connection.execute(sql)
+    end
     
     rows_to_array(rows)
   end
@@ -39,11 +60,17 @@ SQL
     
   def take(num=1)
     if num > 1
-      rows = connection.exec <<-SQL
+      sql =  <<-SQL
         SELECT #{columns.join ","} FROM #{table}
         ORDER BY random()
         LIMIT #{num};
 SQL
+      
+      if defined?(connection.exec)
+        rows = connection.exec(sql)
+      else
+        rows = connection.execute(sql)
+      end
       
       rows_to_array(rows)
     else
@@ -53,44 +80,69 @@ SQL
     
     
   def take_one
-    row = connection.exec(<<-SQL).first.values
+    sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY random()
       LIMIT 1;
 SQL
+    
+    if defined?(connection.exec)
+      row = connection.exec(sql).first
+    else
+      row = connection.get_first_row(sql)
+    end
     
     init_object_from_row(row)
   end
     
     
   def first
-    row = connection.exec(<<-SQL).first.values
+    sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id ASC LIMIT 1;
 SQL
+    
+    if defined?(connection.exec)
+      row = connection.exec(sql).first
+    else
+      row = connection.get_first_row(sql)
+    end
     
     init_object_from_row(row)
   end
     
     
   def last
-    row = connection.exec(<<-SQL).first.values
+    sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id DESC LIMIT 1;
 SQL
+    
+    if defined?(connection.exec)
+      row = connection.exec(sql).first
+    else
+      row = connection.get_first_row(sql)
+    end
     
     init_object_from_row(row)
   end
     
   
   def all
-    rows = connection.exec <<-SQL
+    sql = <<-SQL
       SELECT #{columns.join ","} FROM #{table};
 SQL
+    
+    if defined?(connection.exec)
+      rows = connection.exec(sql)
+    else
+      rows = connection.execute(sql)
+    end
     
     rows_to_array(rows)
   end
 
+  
   def where(*args)
     if args.count > 1
       expression = args.shift
@@ -109,10 +161,16 @@ SQL
        SELECT #{columns.join ","} FROM #{table}
        WHERE #{expression};
 SQL
-
-     rows = connection.exec(sql, params)
+    
+    if defined?(connection.exec)
+       rows = connection.exec(sql, params)
+    else
+      rows = connection.execute(sql, params)
+    end
+    
      rows_to_array(rows)
   end
+  
   
   def order(*args)
     if args.count > 1
@@ -121,10 +179,15 @@ SQL
       order = args.first.to_s
     end
     
-    rows = connection.exec <<-SQL
+    sql = <<-SQL
       SELECT * FROM #{table}
       ORDER BY #{order};
 SQL
+    if defined?(connection.exec)
+      rows = connection.exec(sql)
+    else
+      rows = connection.execute(sql)
+    end
     
     rows_to_array(rows)
   end
@@ -133,20 +196,35 @@ SQL
   def join(*args)
     if args.count > 1
       joins = args.map { |arg| "INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id"}.join(" ")
-      rows = connection.exec <<-SQL
+      sql = <<-SQL
         SELECT * FROM #{table} #{joins}
 SQL
+        if defined?(connection.exec)
+          rows = connection.exec(sql)
+        else
+          rows = connection.execute(sql)
+        end
     else
       case args.first
       when String
-        rows = connection.exec <<-SQL
+        sql = <<-SQL
           SELECT * FROM #{table} #{BlocRecord::Utility.sql_strings(args.first)};
 SQL
+        if defined?(connection.exec)
+          rows = connection.exec(sql)
+        else
+          rows = connection.execute(sql)
+        end
       when Symbol
-        rows = connection.exec <<-SQL
+        sql = <<-SQL
           SELECT * FROM #{table}
           INNER JOIN #{args.first} ON #{args.first}.#{table}_id = #{table}.id
 SQL
+        if defined?(connection.exec)
+          rows = connection.exec(sql)
+        else
+          rows = connection.execute(sql)
+        end
       end
     end
     

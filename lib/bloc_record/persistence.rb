@@ -1,6 +1,6 @@
 require 'sqlite3'
-require 'bloc_record/schema'
 require 'pg'
+require 'bloc_record/schema'
 
 
 module Persistence
@@ -24,11 +24,19 @@ module Persistence
     
     fields = self.class.attributes.map { |col| "#{col}=#{BlocRecord::Utility.sql_strings(self.instance_variable_get("@#{col}"))}"}.join(",")
     
-    self.class.connection.exec <<- SQL
-      UPDATE #{self.class.table}
-      SET #{fields}
-      WHERE id = #{self.id};
-    SQL
+    if defined?(self.class.connection.exec)
+      self.class.connection.exec <<-SQL
+        UPDATE #{self.class.table}
+        SET #{fields}
+        WHERE id = #{self.id};
+SQL
+    else
+      self.class.connection.execute <<-SQL
+        UPDATE #{self.class.table}
+        SET #{fields}
+        WHERE id = #{self.id};
+SQL
+    end
     
     true
   end
@@ -56,34 +64,66 @@ module Persistence
       attrs.delete "id"
       vals = attributes.map { |key| BlocRecord::Utility.sql_strings(attrs[key]) }
       
-      connection.exec <<-SQL
+      if defined?(connection.exec)
+        connection.exec <<-SQL
         INSERT INTO #{table} (#{attributes.join ","})
         VALUES (#{vals.join ","});
 SQL
-
-      data = Hash[attributes.zip attrs.values]
-      data["id"] = connection.exec("SELECT currval(pg_get_serial_sequence('#{table}','id'));")[0][0]
-      new(data)
-    end
-    
-    
-    def update(ids, updates)
-      updates = BlocRecord::Utility.convert_keys(updates)
-      updates.delete "id"
-      updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
-      
-      if ids.class == Fixnum || Serial
-        where_clause = "WHERE id = #{ids}"
-      elsif ids.class == Array
-        where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
+        data = Hash[attributes.zip attrs.values]
+        data["id"] = connection.exec("SELECT lastval();").first.values.join "," 
       else
-        where_clause = ";"
-      end
-      
-      connection.exec <<-SQL
-        UPDATE #{table}
-        SET #{updates_array * ","} #{where_clause}
+        connection.execute <<-SQL
+        INSERT INTO #{table} (#{attributes.join ","})
+        VALUES (#{vals.join ","});
 SQL
+        data = Hash[attributes.zip attrs.values]
+        data["id"] = connection.execute("SELECT last_insert_rowid();")[0][0]
+      end
+  
+        new(data)
+    end
+
+
+    def update(ids, updates)
+      if defined?(connection.exec)
+        updates = BlocRecord::Utility.convert_keys(updates)
+        updates.delete "id"
+        updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+
+        if ids.class == Fixnum
+          where_clause = "WHERE id = #{ids}"
+        elsif ids.class == Array
+          where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
+        else
+          where_clause = ";"
+        end
+
+        sql = <<-SQL
+            UPDATE #{table}
+            SET #{updates_array * ","} #{where_clause}
+SQL
+        
+        connection.exec(sql)
+      else 
+        updates = BlocRecord::Utility.convert_keys(updates)
+        updates.delete "id"
+        updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+
+        if ids.class == Fixnum
+          where_clause = "WHERE id = #{ids}"
+        elsif ids.class == Array
+          where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
+        else
+          where_clause = ";"
+        end
+
+        sql = <<-SQL
+            UPDATE #{table}
+            SET #{updates_array * ","} #{where_clause}
+SQL
+        
+        connection.execute(sql)
+      end
       
       true
     end
@@ -95,15 +135,31 @@ SQL
     
     
     def destroy(*id)
-      if id.length > 1
-        where_clause = "WHERE id IN (#{id.join(",")});"
-      else
-        where_clause = "WHERE id = #{id.first[1]};"
-      end
-      
-      connection.exec <<-SQL
-        DELETE FROM #{table} #{where_clause}
+      if defined?(connection.exec)
+        if id.length > 1
+          where_clause = "WHERE id IN (#{id.join(",")});"
+        else
+          where_clause = "WHERE id = #{id.first[1]};"
+        end
+
+        sql = <<-SQL
+          DELETE FROM #{table} #{where_clause}
 SQL
+      
+        connection.exec(sql)
+      else 
+        if id.length > 1
+          where_clause = "WHERE id IN (#{id.join(",")});"
+        else
+          where_clause = "WHERE id = #{id.first};"
+        end
+
+        sql = <<-SQL
+          DELETE FROM #{table} #{where_clause}
+SQL
+        
+        connection.execute(sql)
+      end
       
       true
     end
@@ -114,20 +170,28 @@ SQL
         conditions_hash = BlocRecord::Utility.convert_keys(conditions_hash)
         conditions = conditions_hash.map {|key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}"}.join(" and ")
         
-        connection.exec <<-SQL
+        sql = <<-SQL
           DELETE FROM #{table}
           WHERE #{conditions};
 SQL
+        if defined?(connection.exec)
+          connection.exec(sql)
+        else 
+          connection.execute(sql)
+        end
       else
-        connection.exec <<-SQL
+        sql = <<-SQL
           DELETE FROM #{table}
 SQL
+        if defined?(connection.exec)
+          connection.exec(sql)
+        else 
+          connection.execute(sql)
+        end
       end
       
       true
     end
-    
-    
 
   end
   

@@ -6,10 +6,18 @@ module Associations
   
   def has_many(association)
     define_method(association) do
-      rows = self.class.connection.exec <<-SQL
+      if defined?(self.class.connection.exec)
+        rows = self.class.connection.exec <<-SQL
+        SELECT * FROM #{association.to_s.singularize}
+        WHERE #{self.class.table}_id = #{self.id.last}
+SQL
+      else
+        rows = self.class.connection.execute <<-SQL
         SELECT * FROM #{association.to_s.singularize}
         WHERE #{self.class.table}_id = #{self.id}
 SQL
+      end
+     
       class_name = association.to_s.classify.constantize
       collection = BlocRecord::Collection.new
       
@@ -25,10 +33,16 @@ SQL
   def has_one(association)
     define_method(association) do
       association_name = association.to_s
-      row = self.class.connection.exec(<<-SQL).first.values
-        SELECT * FROM #{association_name}
-        WHERE #{self.class.table}_id = #{self.id}
+
+      
+      if defined?(self.class.connection.exec)
+        row = self.class.connection.exec(sql).first
+      else
+        row = self.class.connection.get_first_row <<-SQL
+         SELECT * FROM #{association_name}
+         WHERE id = #{self.send(association_name + "_id")}
 SQL
+      end
       
       class_name = association_name.classify.constantize
       
@@ -44,12 +58,18 @@ SQL
   def belongs_to(association)
     define_method(association) do
       association_name = association.to_s
-      target_id = self.send(association_name + "_id")[1]
-      row = self.class.connection.exec(<<-SQL).first.values
+      if defined?(self.class.connection.exec)
+        row = self.class.connection.exec <<-SQL
         SELECT * FROM #{association_name}
-        WHERE id = #{target_id}
+        WHERE id = #{self.send(association_name + "_id").last}
+        LIMIT 1;
 SQL
-      
+      else
+        row = self.class.connection.get_first_row <<-SQL
+        SELECT * FROM #{association_name}
+        WHERE id = #{self.send(association_name + "_id")}
+SQL
+      end
       class_name = association_name.classify.constantize
       
       if row
